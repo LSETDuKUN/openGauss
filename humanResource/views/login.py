@@ -3,7 +3,6 @@ from PyQt5.QtWidgets import (
     QVBoxLayout, QMessageBox
 )
 
-
 class LoginWindow(QWidget):
     def __init__(self, db):
         super().__init__()
@@ -53,14 +52,14 @@ class LoginWindow(QWidget):
         self.hide()
 
         if role == 'staff':
-            from staff import StaffWindow
+            from views.staff import StaffWindow
             self.staff_window = StaffWindow(self.db, user_id)
             self.staff_window.show()
         elif role == 'manager':
-            from manager import ManagerWindow
+            from views.manager import ManagerWindow
             self.manager_window = ManagerWindow(self.db, user_id)
             self.manager_window.show()
         elif role == 'hr_manager':
-            from hr_manager import HRManagerWindow
+            from views.hr_manager import HRManagerWindow
             self.hr_window = HRManagerWindow(self.db, user_id)
             self.hr_window.show()
