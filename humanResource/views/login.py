@@ -3,6 +3,7 @@ from PyQt5.QtWidgets import (
     QVBoxLayout, QMessageBox
 )
 
+
 class LoginWindow(QWidget):
     def __init__(self, db):
         super().__init__()
