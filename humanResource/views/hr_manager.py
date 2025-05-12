@@ -126,14 +126,16 @@ class HRManagerWindow(QWidget):
 
         self.load_depts()
 
+
+
     def init_place_tab(self):
         layout = QVBoxLayout()
 
         # 地点表格
         self.loc_table = QTableWidget()
-        self.loc_table.setColumnCount(5)
+        self.loc_table.setColumnCount(6)
         self.loc_table.setHorizontalHeaderLabels(
-            ['地点ID', '地址', '邮编', '城市', '州']
+            ['地点ID', '地址', '邮编', '城市', '国家', '地区']
         )
 
         # 添加新地点区域
@@ -142,7 +144,12 @@ class HRManagerWindow(QWidget):
         self.loc_address = QLineEdit()
         self.loc_postal = QLineEdit()
         self.loc_city = QLineEdit()
-        self.loc_state = QLineEdit()
+        self.state_combobox = QComboBox()  # 国家下拉框
+        self.area_combobox = QComboBox()  # 地区下拉框
+
+        # 加载国家和地区数据到下拉框
+        self.load_states_and_areas()
+
         add_btn = QPushButton('添加新地点')
         add_btn.clicked.connect(self.add_place)
 
@@ -150,7 +157,8 @@ class HRManagerWindow(QWidget):
         add_layout.addRow('地址:', self.loc_address)
         add_layout.addRow('邮编:', self.loc_postal)
         add_layout.addRow('城市:', self.loc_city)
-        add_layout.addRow('州:', self.loc_state)
+        add_layout.addRow('国家:', self.state_combobox)
+        add_layout.addRow('地区:', self.area_combobox)
         add_layout.addRow(add_btn)
 
         layout.addWidget(self.loc_table)
@@ -308,20 +316,6 @@ class HRManagerWindow(QWidget):
             )
 
         QMessageBox.information(self, "统计结果", msg)
-
-    # def load_depts(self):
-    #     query = "SELECT * FROM sections"
-    #     results = self.db.execute_query(query)
-    #
-    #     self.dept_table.setRowCount(0)
-    #     if not results:
-    #         return
-    #
-    #     self.dept_table.setRowCount(len(results))
-    #     for row_idx, row_data in enumerate(results):
-    #         for col_idx, col_data in enumerate(row_data):
-    #             self.dept_table.setItem(
-    #                 row_idx, col_idx, QTableWidgetItem(str(col_data)))
     def load_depts(self):
         query = """
         SELECT 
@@ -371,20 +365,9 @@ class HRManagerWindow(QWidget):
             QMessageBox.warning(self, '错误', '部门名称更新失败')
 
     def load_places(self):
-        # query = "SELECT * FROM places"
-        # results = self.db.execute_query(query)
-        #
-        # self.loc_table.setRowCount(0)
-        # if not results:
-        #     return
-        #
-        # self.loc_table.setRowCount(len(results))
-        # for row_idx, row_data in enumerate(results):
-        #     for col_idx, col_data in enumerate(row_data):
-        #         self.loc_table.setItem(
-        #             row_idx, col_idx, QTableWidgetItem(str(col_data)))
+
             query = """
-            SELECT 
+            SELECT
                 l.place_id,
                 l.street_address,
                 l.postal_code,
@@ -411,32 +394,61 @@ class HRManagerWindow(QWidget):
                 for col_idx, value in enumerate(row):
                     self.loc_table.setItem(row_idx, col_idx, QTableWidgetItem(str(value)))
 
-    def add_place(self):
-        loc_id = self.loc_id.text()
-        address = self.loc_address.text()
-        postal = self.loc_postal.text()
-        city = self.loc_city.text()
-        state = self.loc_state.text()
+    def load_states_and_areas(self):
+        """加载国家和地区数据到下拉框"""
+        # 加载地区数据
+        area_query = "SELECT area_id, area_name FROM areas ORDER BY area_name"
+        area_results = self.db.safe_execute(area_query)
 
-        if not all([loc_id, address, postal, city, state]):
-            QMessageBox.warning(self, '错误', '请填写所有字段')
+        self.area_combobox.clear()
+        self.area_combobox.addItem("请选择地区", None)
+        if area_results:
+            for area_id, area_name in area_results:
+                self.area_combobox.addItem(area_name, area_id)
+
+        # 加载国家数据
+        state_query = "SELECT state_id, state_name FROM states ORDER BY state_name"
+        state_results = self.db.safe_execute(state_query)
+
+        self.state_combobox.clear()
+        self.state_combobox.addItem("请选择国家", None)
+        if state_results:
+            for state_id, state_name in state_results:
+                self.state_combobox.addItem(state_name, state_id)
+
+
+    def add_place(self):
+        # 获取输入数据
+        loc_id = self.loc_id.text().strip()
+        address = self.loc_address.text().strip()
+        postal = self.loc_postal.text().strip()
+        city = self.loc_city.text().strip()
+        state_id = self.state_combobox.currentData()
+
+        # 验证所有必填字段
+        if not all([loc_id, address, postal, city, state_id]):
+            QMessageBox.warning(self, '错误', '请填写所有必填字段')
             return
 
+        # 插入新地点
         query = """
-        INSERT INTO places (place_id, address, postal_code, city, state)
-        VALUES (%s, %s, %s, %s, %s)
+        INSERT INTO places 
+            (place_id, street_address, postal_code, city, state_id)
+        VALUES 
+            (%s, %s, %s, %s, %s)
         """
-        result = self.db.execute_query(query, (loc_id, address, postal, city, state))
+        result = self.db.safe_execute(query, (loc_id, address, postal, city, state_id))
 
         if result:
             QMessageBox.information(self, '成功', '工作地点添加成功')
-            self.load_places()
+            self.load_states_and_areas()
             # 清空输入框
             self.loc_id.clear()
             self.loc_address.clear()
             self.loc_postal.clear()
             self.loc_city.clear()
-            self.loc_state.clear()
+            self.state_combobox.setCurrentIndex(0)
+            self.area_combobox.setCurrentIndex(0)
         else:
             QMessageBox.warning(self, '错误', '工作地点添加失败')
 

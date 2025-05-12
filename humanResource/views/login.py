@@ -33,14 +33,60 @@ class LoginWindow(QWidget):
 
         self.setLayout(layout)
 
+
+
+    # def authenticate(self):
+    #     user_id = self.txt_user.text()
+    #     password = self.txt_pass.text()
+    #
+    #     if not user_id or not password:
+    #         QMessageBox.warning(self, '错误', '请输入用户名和密码')
+    #         return
+    #
+    #     query = "SELECT role FROM staffs WHERE staff_id = %s AND password = %s"
+    #     result = self.db.execute_query(query, (user_id, password))
+    #
+    #     if not result:
+    #         QMessageBox.warning(self, '错误', '用户名或密码错误')
+    #         return
+    #
+    #     role = result[0][0]
+    #     self.hide()
+    #
+    #     if role == 'staff':
+    #         from views.staff import StaffWindow
+    #         self.staff_window = StaffWindow(self.db, user_id)
+    #         self.staff_window.show()
+    #     elif role == 'manager':
+    #         from views.manager import ManagerWindow
+    #         self.manager_window = ManagerWindow(self.db, user_id)
+    #         self.manager_window.show()
+    #     elif role == 'hr_manager':
+    #         from views.hr_manager import HRManagerWindow
+    #         self.hr_window = HRManagerWindow(self.db, user_id)
+    #         self.hr_window.show()
     def authenticate(self):
-        user_id = self.txt_user.text()
+        user_id = self.txt_user.text().strip()
         password = self.txt_pass.text()
 
         if not user_id or not password:
             QMessageBox.warning(self, '错误', '请输入用户名和密码')
             return
 
+        # 特殊处理 hr001 登录
+        if user_id == 'hr001':
+            if password == '123456':  # 设置特定密码
+                self.hide()
+                from views.hr_manager import HRManagerWindow
+                # 使用 staff_id = 100 初始化人事经理窗口
+                self.hr_window = HRManagerWindow(self.db, '100')
+                self.hr_window.show()
+                return
+            else:
+                QMessageBox.warning(self, '错误', '密码错误')
+                return
+
+        # 其他普通用户的验证逻辑
         query = "SELECT role FROM staffs WHERE staff_id = %s AND password = %s"
         result = self.db.execute_query(query, (user_id, password))
 
