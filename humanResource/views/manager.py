@@ -108,7 +108,7 @@ class ManagerWindow(QWidget):
 
         if self.search_type.currentIndex() == 0:  # 按员工ID
             query = """
-            SELECT 
+            SELECT
                 s.staff_id,
                 s.first_name || ' ' || s.last_name AS full_name,
                 s.employment_id,
@@ -123,7 +123,7 @@ class ManagerWindow(QWidget):
             params = (self.section_id, search_text)
         else:  # 按员工姓名
             query = """
-            SELECT 
+            SELECT
                 s.staff_id,
                 s.first_name || ' ' || s.last_name AS full_name,
                 s.employment_id,
@@ -133,10 +133,15 @@ class ManagerWindow(QWidget):
                 s.hire_date,
                 s.role
             FROM staffs s
-            WHERE s.section_id = %s 
-              AND (s.first_name LIKE %s OR s.last_name LIKE %s)
+            WHERE s.section_id = %s
+              AND (
+                  s.first_name ILIKE %s 
+                  OR s.last_name ILIKE %s
+                  OR (s.first_name || ' ' || s.last_name) ILIKE %s
+              )
             """
-            params = (self.section_id, f"%{search_text}%", f"%{search_text}%")
+            search_pattern = f"%{search_text}%"
+            params = (self.section_id, search_pattern, search_pattern, search_pattern)
 
         results = self.db.safe_execute(query, params)
         self.populate_table(results if results else [])
