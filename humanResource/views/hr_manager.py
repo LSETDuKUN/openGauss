@@ -40,6 +40,19 @@ class HRManagerWindow(QWidget):
         main_layout.addWidget(self.tabs)
         self.setLayout(main_layout)
 
+        # 添加查询工作历史按钮和输入框
+        history_layout = QHBoxLayout()
+        self.history_staff_id = QLineEdit()
+        history_btn = QPushButton('查询工作历史')
+        history_btn.clicked.connect(self.show_employment_history)
+
+        history_layout.addWidget(QLabel('员工ID:'))
+        history_layout.addWidget(self.history_staff_id)
+        history_layout.addWidget(history_btn)
+
+        # 将新布局添加到主布局中
+        main_layout.addLayout(history_layout)
+
     def init_staff_tab(self):
         layout = QVBoxLayout()
 
@@ -147,26 +160,7 @@ class HRManagerWindow(QWidget):
         self.load_places()
 
 
-    # def load_all_staff(self):
-    #     try:
-    #         order_by = "staff_id ASC" if self.staff_sort.currentIndex() == 0 else "salary DESC"
-    #         query = sql.SQL("""
-    #             SELECT s.staff_id, s.first_name || ' ' || s.last_name AS full_name, s.email, s.phone_number,
-    #                    s.salary, s.position, d.section_name
-    #             FROM staffs s
-    #             JOIN sections d ON s.section_id = d.section_id
-    #             ORDER BY {}
-    #         """).format(sql.Identifier(order_by.split()[0]))  # 安全参数化
-    #
-    #         results = self.db.safe_execute(query)
-    #         if results is None:
-    #             QMessageBox.warning(self, "错误", "查询失败")
-    #             return
-    #
-    #         self.populate_staff_table(results)
-    #
-    #     except Exception as e:
-    #         QMessageBox.critical(self, "错误", f"系统错误: {str(e)}")
+
     def load_all_staff(self):
         try:
             order_by = "s.staff_id ASC" if self.staff_sort.currentIndex() == 0 else "s.salary DESC"
@@ -221,56 +215,65 @@ class HRManagerWindow(QWidget):
             self.load_all_staff()
             return
 
-        if self.staff_search_type.currentIndex() == 0:  # 按编号
-            query = """
-            SELECT s.staff_id, s.first_name || ' ' || s.last_name AS full_name, s.email, s.phone_number, s.salary, s.employment_id, d.section_name
-            FROM staffs s
-            JOIN sections d ON s.section_id = d.section_id
-            WHERE s.staff_id = %s
-            """
-            params = (search_text,)
-        else:  # 按姓名
-            query = """
-            SELECT s.staff_id, s.first_name || ' ' || s.last_name AS full_name, s.email, s.phone_number, s.salary, s.employment_id, d.section_name
-            FROM staffs s
-            JOIN sections d ON s.section_id = d.section_id
-            WHERE s.first_name || ' ' || s.last_name AS full_name LIKE %s
-            """
-            params = (f"%{search_text}%",)
+        try:
+            if self.staff_search_type.currentIndex() == 0:  # 按编号
+                query = """
+                SELECT 
+                    s.staff_id,
+                    s.first_name || ' ' || s.last_name AS full_name,
+                    s.email,
+                    s.phone_number,
+                    s.salary,
+                    s.employment_id,
+                    sec.section_name,
+                    a.area_name,
+                    st.state_name,
+                    s.role
+                FROM staffs s
+                LEFT JOIN sections sec ON s.section_id = sec.section_id
+                LEFT JOIN places l ON sec.place_id = l.place_id
+                LEFT JOIN states st ON l.state_id = st.state_id
+                LEFT JOIN areas a ON st.area_id = a.area_id
+                WHERE s.staff_id = %s
+                """
+                params = (search_text,)
+                # 在 search_staff 方法中,将按姓名搜索的 else 分支修改如下
+            else:  # 按姓名
+                query = """
+                    SELECT
+                        s.staff_id,
+                        s.first_name || ' ' || s.last_name AS full_name,
+                        s.email,
+                        s.phone_number,
+                        s.salary,
+                        s.employment_id,
+                        sec.section_name,
+                        a.area_name,
+                        st.state_name,
+                        s.role
+                    FROM staffs s
+                    LEFT JOIN sections sec ON s.section_id = sec.section_id
+                    LEFT JOIN places l ON sec.place_id = l.place_id
+                    LEFT JOIN states st ON l.state_id = st.state_id
+                    LEFT JOIN areas a ON st.area_id = a.area_id
+                    WHERE (s.first_name || ' ' || s.last_name) ILIKE %s
+                    """
+                search_pattern = f"%{search_text}%"
+                params = (search_pattern,)
 
-        results = self.db.execute_query(query, params)
-        self.populate_staff_table(results)
+            results = self.db.safe_execute(query, params)
+            if results is None:
+                QMessageBox.warning(self, "错误", "搜索失败")
+                return
 
-    def populate_staff_table(self, data):
-        self.staff_table.setRowCount(0)
-        if not data:
-            return
+            self.populate_staff_table(results)
 
-        self.staff_table.setRowCount(len(data))
-        for row_idx, row_data in enumerate(data):
-            for col_idx, col_data in enumerate(row_data):
-                self.staff_table.setItem(
-                    row_idx, col_idx, QTableWidgetItem(str(col_data)))
+        except Exception as e:
+            QMessageBox.critical(self, "错误", f"搜索出错: {str(e)}")
 
-    # def show_dept_stats(self):
-    #     query = """
-    #     SELECT 
-    #         d.section_name,
-    #         MAX(s.salary) as max_salary,
-    #         MIN(s.salary) as min_salary,
-    #         AVG(s.salary) as avg_salary
-    #     FROM staffs s
-    #     JOIN sections d ON s.section_id = d.section_id
-    #     GROUP BY d.section_name
-    #     """
-    #     results = self.db.execute_query(query)
-    # 
-    #     if results:
-    #         msg = "各部门工资统计:\n\n"
-    #         for dept, max_sal, min_sal, avg_sal in results:
-    #             msg += f"{dept}:\n  最高: {max_sal}\n  最低: {min_sal}\n  平均: {avg_sal:.2f}\n\n"
-    # 
-    #         QMessageBox.information(self, '部门工资统计', msg)
+
+
+
     def show_dept_stats(self):
         query = """
         SELECT 
@@ -436,3 +439,44 @@ class HRManagerWindow(QWidget):
             self.loc_state.clear()
         else:
             QMessageBox.warning(self, '错误', '工作地点添加失败')
+
+    # 在 hr_manager.py 中添加新方法
+    def show_employment_history(self):
+        staff_id = self.history_staff_id.text().strip()
+        if not staff_id:
+            QMessageBox.warning(self, "警告", "请输入员工ID")
+            return
+
+        query = """
+        SELECT
+            eh.staff_id,
+            eh.employment_id,
+            eh.section_id,
+            eh.start_date,
+            eh.end_date,
+            sec.section_name
+        FROM employment_history eh
+        LEFT JOIN sections sec ON eh.section_id = sec.section_id
+        WHERE eh.staff_id = %s
+        ORDER BY eh.start_date DESC
+        """
+
+        results = self.db.safe_execute(query, (staff_id,))
+        if not results:
+            QMessageBox.information(self, "提示", "未找到该员工的工作历史记录")
+            return
+
+        msg = f"员工 {staff_id} 的工作历史:\n\n"
+        for row in results:
+            # 正确处理datetime对象
+            start_date = row[3].strftime('%Y-%m-%d') if row[3] else ''
+            end_date = "至今" if row[4] is None else row[4].strftime('%Y-%m-%d')
+
+            msg += (
+                f"时间: {start_date} - {end_date}\n"
+                f"职位编号: {row[1]}\n"
+                f"部门: {row[5]} (ID: {row[2]})\n"
+                f"------------------------\n"
+            )
+
+        QMessageBox.information(self, "工作历史", msg)
